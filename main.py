@@ -17,10 +17,10 @@ def main():
     problem_name0 = 'AllenCahn'
     config = get_config(problem_name0)
     bsde = get_equation(problem_name0, config.dim, config.total_time, config.num_time_interval)
-    # log_dir = './logs'
-    # if not os.path.exists(log_dir):
-    #     os.mkdir(log_dir)
-    # path_prefix = os.path.join(log_dir, problem_name0)
+    log_dir = './logs'
+    if not os.path.exists(log_dir):
+         os.mkdir(log_dir)
+    path_prefix = os.path.join(log_dir, problem_name0)
     # with open('{}_config.json'.format(path_prefix), 'w') as outfile:
     #     json.dump(dict((name, getattr(config, name))
     #                    for name in dir(config) if not name.startswith('__')),
@@ -37,7 +37,12 @@ def main():
             #     logging.info('Y0_true: %.4e' % bsde.y_init)
             model.build()
             training_history = model.train()
-            #print(training_history)
+            # training_history.reshape(1,-1)
+            print(training_history.shape)
+            np.savetxt('{}_training_history_{}.csv'.format(path_prefix, idx_run),
+                       training_history,
+                       fmt=['%.5e'],
+                       header="loss_function")
             writer = tf.summary.FileWriter('./graph/ograph',sess.graph)
 
 if __name__ == '__main__':
