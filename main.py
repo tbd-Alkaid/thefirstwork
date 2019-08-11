@@ -2,7 +2,7 @@
 The main file to run BSDE solver to solve parabolic partial differential equations (PDEs).
 
 """
-
+from __future__ import print_function
 import json
 import logging
 import os
@@ -11,7 +11,7 @@ import tensorflow as tf
 from config import get_config
 from equation import get_equation
 from solver import FeedForwardModel
-
+from tensorflow.python import debug as tf_debug
 
 def main():
     problem_name0 = 'AllenCahn'
@@ -31,6 +31,7 @@ def main():
     for idx_run in range(1, 2):
         tf.reset_default_graph()
         with tf.Session() as sess:
+            # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
             # logging.info('Begin to solve %s with run %d' % (problem_name0, idx_run))
             model = FeedForwardModel(config, bsde, sess)
             # if bsde.y_init:
@@ -38,11 +39,11 @@ def main():
             model.build()
             training_history = model.train()
             # training_history.reshape(1,-1)
-            print(training_history.shape)
-            np.savetxt('{}_training_history_{}.csv'.format(path_prefix, idx_run),
-                       training_history,
-                       fmt=['%.5e'],
-                       header="loss_function")
+            # print(training_history.shape)
+            # np.savetxt('{}_training_history_{}.csv'.format(path_prefix, idx_run),
+            #            training_history,
+            #            fmt=['%.5e'],
+            #            header="loss_function")
             writer = tf.summary.FileWriter('./graph/ograph',sess.graph)
 
 if __name__ == '__main__':

@@ -17,7 +17,7 @@ class AllenCahnConfig(Config):
     dim = 5
     lr_values = list(np.array([5e-4, 5e-4]))
     lr_boundaries = [2000]
-    num_iterations = 100
+    num_iterations = 1000
     num_hiddens = [dim, dim + 10, dim + 10, dim]
     y_init_range = [0.3, 0.6]
 
