@@ -5,13 +5,13 @@ import logging
 import time
 import numpy as np
 import tensorflow as tf
+import copy
 from tensorflow.python.training import moving_averages
 
 TF_DTYPE = tf.float32
 MOMENTUM = 0.99
 EPSILON = 1e-6
 DELTA_CLIP = 50.0
-
 
 class FeedForwardModel(object):
     """The fully connected neural network model."""
@@ -39,7 +39,7 @@ class FeedForwardModel(object):
         # begin sgd iteration
         for step in range(self._config.num_iterations+1):
             if step % self._config.logging_frequency == 0:
-                loss = self._sess.run([self._newloss], feed_dict=feed_dict_valid)
+                loss = self._sess.run([self._newloss,self.pri], feed_dict=feed_dict_valid)
                 # print(loss.shape)
                 #########################################
                 # y = self._sess.run(self.y, feed_dict=feed_dict_valid)####
@@ -58,9 +58,9 @@ class FeedForwardModel(object):
 
     def build(self):
         # start_time = time.time()
-        self._t = tf.placeholder(TF_DTYPE,None, name='t')
-        self._dw = tf.placeholder(TF_DTYPE, [None, self._dim, self._num_time_interval], name='dW')
-        self._x = tf.placeholder(TF_DTYPE, [None, self._dim, self._num_time_interval + 1], name='X')
+        self._t = tf.placeholder(TF_DTYPE,self._num_time_interval, name='t')
+        self._dw = tf.placeholder(TF_DTYPE, [self._config.valid_size, self._dim, self._num_time_interval], name='dW')
+        self._x = tf.placeholder(TF_DTYPE, [self._config.valid_size, self._dim, self._num_time_interval + 1], name='X')
         self._is_training = tf.placeholder(tf.bool,name= 'is_train')
         # self._y_init = tf.Variable(tf.random_uniform([1],
         #                                              minval=self._config.y_init_range[0],
@@ -76,24 +76,42 @@ class FeedForwardModel(object):
                                                      maxval=self._config.y_init_range[1],
                                                      dtype=TF_DTYPE))
         z = tf.matmul(all_one_vec, z_init)
-        # p'r
-        self.k = tf.Variable(0, dtype=TF_DTYPE, name='kk')
+        self.k = tf.Variable(tf.zeros(shape=[tf.shape(all_one_vec)[0],self._dim], dtype=TF_DTYPE), name='kk')
+        self.newdata1 = tf.Variable(0,dtype=TF_DTYPE,name='nd1')
         for t in range(0, self._num_time_interval-1):
-            self.k=self._x[:, :, t+1]
+            # kname='{}k'.format(str(t))
+            # w =self._x[:, :, t+1]
+            self.k=tf.assign(self.k,self._x[:, :, t+1])
+            # self.pri = tf.print(self.k)
+            # self.k=self._x[:, :, t+1]
             self.y  =tf.subtract( self.y,tf.multiply(self._bsde.delta_t,self._bsde.f_tf(self._t[t], self._x[:, :, t], self.y , z)
             )) + tf.reduce_sum(tf.multiply(z , self._dw[:, :, t]), 1, keep_dims=True)
             z = self._subnetwork(self.k, str(t + 1))
             if t==self._num_time_interval-2:
-                # self._hessian = tf.gradients(z[:, 0], self.k) / np.sqrt(2.0)
-                self._hessian = [tf.gradients(z[:,i], self.k) for i in range(self._dim)]/np.sqrt(2.0)###############################
-                # print(self._hessian[3,0][:,0])
-                self.newdata1 = tf.Variable(0,dtype=TF_DTYPE,name='nd1')
+                # self.pri = tf.print(self.k)
+                # self._hessian = tf.gradients(z[100,3], self.k) / np.sqrt(2.0)
+                # self.pri = tf.print(self._hessian[0][100,:])
+                # print(self._hessian)
                 j=0
-                while j < self._dim:
-                    self.newdata1 = self.newdata1+self._hessian[j,0][:,j]
+                while j<self._config.valid_size:
+                    print(j)
+                    self.kk = 0
+                    self._hessian = [tf.gradients(z[j,i], self.k) for i in range(self._dim)]/np.sqrt(2.0)##############
+                    for i in range(self._dim):
+                        self.kk = self.kk+self._hessian[i,0][j,i]
+                        self.pri = tf.print(self.kk)
+                    self.newdata1=self.newdata1+ self.kk
                     j=j+1
+                self.newdata1=self.newdata1/self._config.valid_size
+                self.pri = tf.print(self.kk)
+                # print(z[0,0])
+                # self.newdata1 = tf.Variable(0,dtype=TF_DTYPE,name='nd1')
+                # j=0
+                # while j < self._dim:
+                    # self.newdata1 = self.newdata1+self._hessian[j,0][:,j]
+                    # j=j+1
                 # self.newdata2 = tf.reduce_sum(self.newdata1)
-        tf.print(self.newdata1,[self.newdata1])
+        # self.pri=tf.print(self.newdata1)
         self.y  = tf.subtract(self.y,tf.multiply( self._bsde.delta_t , self._bsde.f_tf(
             self._t[-1], self._x[:, :, -2], self.y , z
         ))) + tf.reduce_sum(tf.multiply(z/self._dim, self._dw[:, :, -1]), 1, keep_dims=True)

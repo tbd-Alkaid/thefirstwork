@@ -44,7 +44,7 @@ def main():
             #            training_history,
             #            fmt=['%.5e'],
             #            header="loss_function")
-            writer = tf.summary.FileWriter('./graph/ograph',sess.graph)
+            writer = tf.summary.FileWriter('./graph/qgraph',sess.graph)
 
 if __name__ == '__main__':
     main()
