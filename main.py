@@ -39,11 +39,13 @@ def main():
             model.build()
             training_history = model.train()
             # training_history.reshape(1,-1)
-            # print(training_history.shape)
-            # np.savetxt('{}_training_history_{}.csv'.format(path_prefix, idx_run),
-            #            training_history,
-            #            fmt=['%.5e'],
-            #            header="loss_function")
+            print(training_history)
+            np.savetxt('{}_training_history_{}.csv'.format(path_prefix, idx_run),
+                       training_history,
+                       fmt=['%.5e','%d'],
+                       delimiter=",",
+                       header="loss_function,elapsed_time",
+                       comments='')
             writer = tf.summary.FileWriter('./graph/qgraph',sess.graph)
 
 if __name__ == '__main__':

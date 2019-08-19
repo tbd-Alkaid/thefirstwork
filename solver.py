@@ -27,7 +27,7 @@ class FeedForwardModel(object):
         self._extra_train_ops = []
 
     def train(self):
-        # start_time = time.time()
+        start_time = time.time()
         # to save iteration results
         training_history = []
         # for validation
@@ -39,16 +39,15 @@ class FeedForwardModel(object):
         # begin sgd iteration
         for step in range(self._config.num_iterations+1):
             if step % self._config.logging_frequency == 0:
-                loss = self._sess.run([self._newloss,self.pri], feed_dict=feed_dict_valid)
+                loss = self._sess.run(self._newloss, feed_dict=feed_dict_valid)
                 # print(loss.shape)
                 #########################################
                 # y = self._sess.run(self.y, feed_dict=feed_dict_valid)####
-                # elapsed_time = time.time()-start_time+self._t_build
-                training_history.append(loss)
-                '''
+                elapsed_time = time.time()-start_time+self._t_build
+                training_history.append((loss,elapsed_time))
                 if self._config.verbose:
-                    logging.info("step: %5u,    loss: %.4e,   Y0: %.4e,  elapsed time %3u" % (
-                        step, loss, init, elapsed_time))'''
+                    logging.info("loss: %.4e,   elapsed time %3u" % (
+                        loss,elapsed_time))
             dw_train, x_train,t_train = self._bsde.sample(self._config.valid_size,self._num_time_interval,self._bsde.delta_t)
             self._sess.run(self._train_ops, feed_dict={self._dw: dw_train,
                                                        self._x: x_train,
@@ -57,7 +56,7 @@ class FeedForwardModel(object):
         return np.array(training_history)
 
     def build(self):
-        # start_time = time.time()
+        start_time = time.time()
         self._t = tf.placeholder(TF_DTYPE,self._num_time_interval, name='t')
         self._dw = tf.placeholder(TF_DTYPE, [self._config.valid_size, self._dim, self._num_time_interval], name='dW')
         self._x = tf.placeholder(TF_DTYPE, [self._config.valid_size, self._dim, self._num_time_interval + 1], name='X')
@@ -66,60 +65,47 @@ class FeedForwardModel(object):
         #                                              minval=self._config.y_init_range[0],
         #                                              maxval=self._config.y_init_range[1],
         #                                              dtype=TF_DTYPE),name='y_init')
-        self.y = tf.ones(shape=tf.stack([tf.shape(self._dw)[0], 1]), dtype=TF_DTYPE,name='YY')
-        z_init = tf.Variable(tf.random_uniform([1, self._dim],
-                                               minval=-.1, maxval=.1,
-                                               dtype=TF_DTYPE),name='z_init')
+        # self.y = tf.ones(shape=tf.stack([tf.shape(self._dw)[0], 1]), dtype=TF_DTYPE,name='YY')
+        # z_init = tf.Variable(tf.random_uniform([1, self._dim],
+        #                                        minval=-.1, maxval=.1,
+        #                                        dtype=TF_DTYPE),name='z_init')
         all_one_vec = tf.ones(shape=tf.stack([tf.shape(self._dw)[0], 1]), dtype=TF_DTYPE)
-        self.y = tf.multiply(self.y,tf.random_uniform([1],
-                                                     minval=self._config.y_init_range[0],
-                                                     maxval=self._config.y_init_range[1],
-                                                     dtype=TF_DTYPE))
-        z = tf.matmul(all_one_vec, z_init)
-        self.k = tf.Variable(tf.zeros(shape=[tf.shape(all_one_vec)[0],self._dim], dtype=TF_DTYPE), name='kk')
+        # self.y = tf.multiply(self.y,tf.random_uniform([1],
+        #                                              minval=self._config.y_init_range[0],
+        #                                              maxval=self._config.y_init_range[1],
+        #                                              dtype=TF_DTYPE))
+        # z = tf.matmul(all_one_vec, z_init)
+        self.k = tf.Variable(tf.zeros(shape=[self._dim], dtype=TF_DTYPE), name='kk')
         self.newdata1 = tf.Variable(0,dtype=TF_DTYPE,name='nd1')
-        for t in range(0, self._num_time_interval-1):
-            # kname='{}k'.format(str(t))
-            # w =self._x[:, :, t+1]
-            self.k=tf.assign(self.k,self._x[:, :, t+1])
-            # self.pri = tf.print(self.k)
-            # self.k=self._x[:, :, t+1]
-            self.y  =tf.subtract( self.y,tf.multiply(self._bsde.delta_t,self._bsde.f_tf(self._t[t], self._x[:, :, t], self.y , z)
-            )) + tf.reduce_sum(tf.multiply(z , self._dw[:, :, t]), 1, keep_dims=True)
-            z = self._subnetwork(self.k, str(t + 1))
-            if t==self._num_time_interval-2:
-                # self.pri = tf.print(self.k)
-                # self._hessian = tf.gradients(z[100,3], self.k) / np.sqrt(2.0)
-                # self.pri = tf.print(self._hessian[0][100,:])
-                # print(self._hessian)
-                j=0
-                while j<self._config.valid_size:
-                    print(j)
+        self.newdata3 = tf.Variable(0, dtype=TF_DTYPE, name='nd3')
+        self.newdata4 = tf.Variable(0, dtype=TF_DTYPE, name='nd4')
+        for p in range(0,self._config.valid_size):
+            print(p)
+            z = tf.Variable(tf.random_uniform([self._dim],minval=-.1, maxval=.1,dtype=TF_DTYPE),name='zz')
+            self.y = tf.random_uniform([1],minval=self._config.y_init_range[0],maxval=self._config.y_init_range[1],dtype=TF_DTYPE)
+            for t in range(0, self._num_time_interval-1):
+                self.k=tf.assign(self.k,self._x[p, :, t+1])
+                self.y=tf.subtract( self.y,tf.multiply(self._bsde.delta_t,self._bsde.f_tf(self._t[t], self._x[p, :, t], self.y , z)
+                )) + tf.reduce_sum(tf.multiply(z , self._dw[p, :, t]))
+                z = self._subnetwork(self.k, str(t + 1))
+                if t==self._num_time_interval-2:
                     self.kk = 0
-                    self._hessian = [tf.gradients(z[j,i], self.k) for i in range(self._dim)]/np.sqrt(2.0)##############
+                    self._hessian = [tf.gradients(z[i], self.k) for i in range(self._dim)]/np.sqrt(2.0)##############
                     for i in range(self._dim):
-                        self.kk = self.kk+self._hessian[i,0][j,i]
-                        self.pri = tf.print(self.kk)
+                        self.kk = self.kk+self._hessian[i,0][i]
+                        # self.pri = tf.print(self.kk)
                     self.newdata1=self.newdata1+ self.kk
-                    j=j+1
-                self.newdata1=self.newdata1/self._config.valid_size
-                self.pri = tf.print(self.kk)
-                # print(z[0,0])
-                # self.newdata1 = tf.Variable(0,dtype=TF_DTYPE,name='nd1')
-                # j=0
-                # while j < self._dim:
-                    # self.newdata1 = self.newdata1+self._hessian[j,0][:,j]
-                    # j=j+1
-                # self.newdata2 = tf.reduce_sum(self.newdata1)
-        # self.pri=tf.print(self.newdata1)
-        self.y  = tf.subtract(self.y,tf.multiply( self._bsde.delta_t , self._bsde.f_tf(
-            self._t[-1], self._x[:, :, -2], self.y , z
-        ))) + tf.reduce_sum(tf.multiply(z/self._dim, self._dw[:, :, -1]), 1, keep_dims=True)
-        self.newdata3=self._bsde.f_tf(self._t[-1], self._x[:, :, -2], self.y , z)
-        self.newdelta=self.newdata1
+            self.y  = tf.subtract(self.y,tf.multiply( self._bsde.delta_t , self._bsde.f_tf(
+                self._t[-1], self._x[p, :, -2], self.y , z
+            ))) + tf.reduce_sum(tf.multiply(z, self._dw[p, :, -1]))
+            self.newdata3=self.newdata3+self._bsde.f_tf(self._t[-1], self._x[p, :, -2], self.y , z)
+            self.newdata4 = self.newdata4+tf.subtract(self.y,self._bsde.g_tf(self._total_time, self._x[:, :, -1]))
+        self.newdata1 = self.newdata1 / self._config.valid_size
+        self.newdata3 = self.newdata3 / self._config.valid_size
+        self.newdelta=self.newdata3
         # print(self.newloss)
         #########################
-        delta = tf.subtract(self.y,self._bsde.g_tf(self._total_time, self._x[:, :, -1]))
+        delta = self.newdata4/self._config.valid_size
         # print(delta)
         self._loss = tf.reduce_mean(tf.where(tf.abs(delta) < DELTA_CLIP, tf.square(delta),
                                                 2 * DELTA_CLIP * tf.abs(delta) - DELTA_CLIP ** 2))
@@ -127,7 +113,7 @@ class FeedForwardModel(object):
                                                 2 * DELTA_CLIP * tf.abs( self.newdelta) - DELTA_CLIP ** 2))
         # print(self.newloss.shape)
         # self.pri=tf.print(self.newdelta,['self.newdelta_value: ',self.newdelta])
-        self._newloss = self.newloss
+        self._newloss = self.newloss+self._loss
         # print(self._newloss)
         # train operations
         global_step = tf.get_variable('global_step', [],
@@ -145,10 +131,10 @@ class FeedForwardModel(object):
                                             global_step=global_step, name='train_step')
         all_ops = [apply_op] + self._extra_train_ops
         self._train_ops = tf.group(*all_ops)
-        # self._t_build = time.time()-start_time
+        self._t_build = time.time()-start_time
 
     def _subnetwork(self, x, name):
-        with tf.variable_scope(name):
+        with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
             # standardize the path input first
             # the affine  could be redundant, but helps converge faster
             hiddens = self._batch_norm(x, name='path_input_norm')
@@ -165,12 +151,13 @@ class FeedForwardModel(object):
 
     def _dense_batch_layer(self, input_, output_size, activation_fn=None,
                            stddev=5.0, name='linear'):
-        with tf.variable_scope(name):
+        with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
             shape = input_.get_shape().as_list()
-            weight = tf.get_variable('Matrix', [shape[1], output_size], TF_DTYPE,
+            weight = tf.get_variable('Matrix', [shape[0], output_size], TF_DTYPE,
                                      tf.random_normal_initializer(
-                                         stddev=stddev/np.sqrt(shape[1]+output_size)))
-            hiddens = tf.matmul(input_, weight)
+                                         stddev=stddev/np.sqrt(shape[0]+output_size)))
+            hiddens = tf.matmul(tf.reshape(input_ ,[1,shape[0]]), weight)
+            hiddens = tf.reshape(hiddens,[output_size])
             hiddens_bn = self._batch_norm(hiddens)
         if activation_fn:
             return activation_fn(hiddens_bn)
@@ -179,7 +166,7 @@ class FeedForwardModel(object):
 
     def _batch_norm(self, x, affine=True, name='batch_norm'):
         """Batch normalization"""
-        with tf.variable_scope(name):
+        with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
             params_shape = [x.get_shape()[-1]]
             beta = tf.get_variable('beta', params_shape, TF_DTYPE,
                                    initializer=tf.random_normal_initializer(

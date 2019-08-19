@@ -3,21 +3,21 @@ import numpy as np
 class Config(object):
     n_layer = 4
     batch_size = 64
-    valid_size = 256
+    valid_size = 4
     step_boundaries = [2000, 4000]
     num_iterations = 6000
-    logging_frequency = 5
+    logging_frequency = 100
     verbose = True
     y_init_range = [0, 1]
 
 
 class AllenCahnConfig(Config):
     total_time = 0.3
-    num_time_interval = 20
-    dim = 5
+    num_time_interval = 5
+    dim = 100
     lr_values = list(np.array([5e-4, 5e-4]))
     lr_boundaries = [2000]
-    num_iterations = 10
+    num_iterations = 5000
     num_hiddens = [dim, dim + 10, dim + 10, dim]
     y_init_range = [0.3, 0.6]
 
